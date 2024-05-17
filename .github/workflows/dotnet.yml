@@ -1,0 +1,36 @@
+name: .NET
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Check version
+        run: if cat LiveLog/LiveLog.csproj | grep -e "<Version>.*</Version>" | sed 's/.*<Version>\(.*\)<\/Version>/\1/' | xargs -I '{}' sh -c "nuget list -AllVersions LiveSoftware.LiveLog | grep \"LiveSoftware.LiveLog
+          {}\""; then exit 1; else exit 0; fi
+      - name: Restore dependencies
+        run: dotnet restore
+      - name: Test
+        run: dotnet test --verbosity normal
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build
+        run: dotnet build --configuration Release
+      - name: Package
+        run: dotnet pack --configuration Release
+      - name: Publish
+        run: dotnet nuget push LiveLog/bin/Release/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NUGET_API_KEY }}
